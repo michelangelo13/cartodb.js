@@ -1,7 +1,10 @@
 var L = require('leaflet');
-var PathViewBase = require('./path-view-base');
+var PathViewBase = require('../../geometry-views/base/path-view-base');
+var PointView = require('./point-view');
 
 var PolygonView = PathViewBase.extend({
+  PointViewClass: PointView,
+
   _createGeometry: function () {
     return L.polygon(this.model.getCoordinates(), {
       color: this.model.get('lineColor'),
@@ -10,10 +13,8 @@ var PolygonView = PathViewBase.extend({
     });
   },
 
-  _getCoordinatesForMiddlePoints: function () {
-    var coordinates = this.model.getCoordinates();
-    coordinates.push(coordinates[0]);
-    return coordinates;
+  _updatePathFromModel: function () {
+    this._geometry.setLatLngs(this.model.getCoordinates());
   }
 });
 

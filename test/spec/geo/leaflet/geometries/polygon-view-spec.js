@@ -1,14 +1,33 @@
-var PolygonView = require('../../../../../src/geo/leaflet/geometries/polygon-view');
 var Polygon = require('../../../../../src/geo/geometry-models/polygon');
+var Map = require('../../../../../src/geo/map');
 var SharedTestsForPathViews = require('./shared-tests-for-path-views');
-var FakeLeafletMap = require('./fake-leaflet-map');
+var FakeMapView = require('./fake-map-view');
+var PathView = require('./fake-path-view');
 
-describe('src/geo/leaflet/geometries/polygon-view.js', function () {
-  SharedTestsForPathViews.call(this, Polygon, PolygonView);
+var createFakeMapView = function () {
+  var map = new Map(null, {
+    layersFactory: {}
+  });
+  return new FakeMapView({
+    map: map,
+    layerGroupModel: {}
+  });
+};
+
+var getMarkerCoordinates = function (marker) {
+  return marker.getCoordinates();
+};
+
+var isMarkerDraggable = function (marker) {
+  return marker.isDraggable();
+};
+
+fdescribe('src/geo/leaflet/geometries/polygon-view.js', function () {
+  SharedTestsForPathViews.call(this, Polygon, PathView);
 
   describe('expandable paths', function () {
     beforeEach(function () {
-      this.leafletMap = new FakeLeafletMap();
+      this.mapView = createFakeMapView();
 
       this.geometry = new Polygon({
         editable: true,
@@ -19,49 +38,59 @@ describe('src/geo/leaflet/geometries/polygon-view.js', function () {
         ]
       });
 
-      this.geometryView = new PolygonView({
+      this.geometryView = new PathView({
         model: this.geometry,
-        nativeMap: this.leafletMap
+        mapView: this.mapView
       });
 
       this.geometryView.render();
     });
 
     it('should render markers for each vertex, the path, and middle points', function () {
-      var paths = this.leafletMap.getPaths();
-      var markers = this.leafletMap.getMarkers();
+      var paths = this.mapView.getPaths();
+      var markers = this.mapView.getMarkers();
       expect(paths.length).toEqual(1);
       expect(markers.length).toEqual(8); // 4 markers + 4 middle points
 
       // Markers
-      expect(markers[0].getLatLng()).toEqual({ lat: 0, lng: 0 });
-      expect(markers[0].options.draggable).toBe(true);
+      expect(getMarkerCoordinates(markers[0])).toEqual({ lat: 0, lng: 0 });
+      expect(isMarkerDraggable(markers[0])).toBe(true);
 
-      expect(markers[1].getLatLng()).toEqual({ lat: 10, lng: 0 });
-      expect(markers[1].options.draggable).toBe(true);
+      expect(getMarkerCoordinates(markers[1])).toEqual({ lat: 10, lng: 0 });
+      expect(isMarkerDraggable(markers[1])).toBe(true);
 
-      expect(markers[2].getLatLng()).toEqual({ lat: 10, lng: 10 });
-      expect(markers[2].options.draggable).toBe(true);
+      expect(getMarkerCoordinates(markers[2])).toEqual({ lat: 10, lng: 10 });
+      expect(isMarkerDraggable(markers[2])).toBe(true);
 
-      expect(markers[3].getLatLng()).toEqual({ lat: 0, lng: 10 });
-      expect(markers[3].options.draggable).toBe(true);
+      expect(getMarkerCoordinates(markers[3])).toEqual({ lat: 0, lng: 10 });
+      expect(isMarkerDraggable(markers[3])).toBe(true);
 
       // Middle points
-      expect(markers[4].getLatLng()).toEqual({ lat: 5, lng: 0 });
-      expect(markers[4].options.draggable).toBe(true);
+      expect(getMarkerCoordinates(markers[4])).toEqual({ lat: 5, lng: 0 });
+      expect(isMarkerDraggable(markers[4])).toBe(true);
 
-      expect(markers[5].getLatLng()).toEqual({ lat: 10, lng: 5 });
-      expect(markers[5].options.draggable).toBe(true);
+      expect(getMarkerCoordinates(markers[5])).toEqual({ lat: 10, lng: 5 });
+      expect(isMarkerDraggable(markers[5])).toBe(true);
 
-      expect(markers[6].getLatLng()).toEqual({ lat: 5, lng: 10 });
-      expect(markers[6].options.draggable).toBe(true);
+      expect(getMarkerCoordinates(markers[6])).toEqual({ lat: 5, lng: 10 });
+      expect(isMarkerDraggable(markers[6])).toBe(true);
 
-      expect(markers[7].getLatLng()).toEqual({ lat: 0, lng: 5 });
-      expect(markers[7].options.draggable).toBe(true);
+      expect(getMarkerCoordinates(markers[7])).toEqual({ lat: 0, lng: 5 });
+      expect(isMarkerDraggable(markers[7])).toBe(true);
 
-      expect(paths[0].getLatLngs()).toEqual([
+      expect(paths[0].getCoordinates()).toEqual([
         { lat: 0, lng: 0 }, { lat: 10, lng: 0 }, { lat: 10, lng: 10 }, { lat: 0, lng: 10 }
       ]);
+    });
+
+    it('should re-render middle points when map is zoomed', function () {
+      spyOn(this.mapView, 'removeLayer');
+      spyOn(this.mapView, 'addLayer');
+
+      this.mapView.trigger('zoomend');
+
+      expect(this.mapView.removeLayer.calls.count()).toEqual(4);
+      expect(this.mapView.addLayer.calls.count()).toEqual(4);
     });
   });
 });

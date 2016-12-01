@@ -1,7 +1,7 @@
 var MultiPointView = require('../../../../../src/geo/leaflet/geometries/multi-point-view');
 var MultiPoint = require('../../../../../src/geo/geometry-models/multi-point');
 var SharedTestsForMultiGeometryViews = require('./shared-tests-for-multi-geometry-views');
-var FakeLeafletMap = require('./fake-leaflet-map');
+var createFakeLeafletMapView = require('./create-fake-leaflet-map-view');
 
 describe('src/geo/leaflet/geometries/multi-point-view.js', function () {
   beforeEach(function () {
@@ -11,17 +11,17 @@ describe('src/geo/leaflet/geometries/multi-point-view.js', function () {
         [1, 2]
       ]
     });
-    this.leafletMap = new FakeLeafletMap();
+    this.mapView = createFakeLeafletMapView();
 
     this.geometryView = new MultiPointView({
       model: this.geometry,
-      nativeMap: this.leafletMap
+      mapView: this.mapView
     });
   });
 
   SharedTestsForMultiGeometryViews.call(this);
 
   it('should render the geometries', function () {
-    expect(this.leafletMap.getMarkers().length).toEqual(2); // 2 points
+    expect(this.mapView.getMarkers().length).toEqual(2); // 2 points
   });
 });

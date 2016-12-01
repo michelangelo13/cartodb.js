@@ -1,9 +1,35 @@
 var _ = require('underscore');
-var PointView = require('../../../../../src/geo/leaflet/geometries/point-view.js');
-var Point = require('../../../../../src/geo/geometry-models/point.js');
-var FakeLeafletMap = require('./fake-leaflet-map');
 
-describe('src/geo/leaflet/geometries/point-view.js', function () {
+var Map = require('../../../../../src/geo/map');
+
+var FakeMapView = require('./fake-map-view');
+var PointView = require('./fake-point-view');
+
+var createFakeMapView = function () {
+  var map = new Map(null, {
+    layersFactory: {}
+  });
+  return new FakeMapView({
+    map: map,
+    layerGroupModel: {}
+  });
+};
+
+var Point = require('../../../../../src/geo/geometry-models/point.js');
+
+var getMarkerCoordinates = function (marker) {
+  return marker.getCoordinates();
+};
+
+var isMarkerDraggable = function (marker) {
+  return marker.isDraggable();
+};
+
+var fireMarkerEvent = function (marker, event) {
+  marker.trigger(event);
+};
+
+fdescribe('src/geo/leaflet/geometries/point-view.js', function () {
   beforeEach(function () {
     spyOn(_, 'debounce').and.callFake(function (func) { return function () { func.apply(this, arguments); }; });
 
@@ -13,40 +39,60 @@ describe('src/geo/leaflet/geometries/point-view.js', function () {
         40
       ]
     });
-    this.leafletMap = new FakeLeafletMap();
+    this.mapView = createFakeMapView();
 
     this.pointView = new PointView({
       model: this.point,
-      nativeMap: this.leafletMap
+      mapView: this.mapView
     });
 
     this.pointView.render();
   });
 
   it('should add a marker to the map', function () {
-    var markers = this.leafletMap.getMarkers();
+    var markers = this.mapView.getMarkers();
     expect(markers.length).toEqual(1);
-    expect(markers[0].getLatLng()).toEqual({
+    expect(getMarkerCoordinates(markers[0])).toEqual({
       lat: -40,
       lng: 40
     });
-    expect(markers[0].options.draggable).toBe(false);
+    expect(isMarkerDraggable(markers[0])).toBe(false);
+  });
+
+  it('should add a marker to the map when the model gets a lat and lng', function () {
+    this.point = new Point();
+    this.mapView = createFakeMapView();
+
+    this.pointView = new PointView({
+      model: this.point,
+      mapView: this.mapView
+    });
+
+    this.pointView.render();
+
+    var markers = this.mapView.getMarkers();
+    expect(markers.length).toEqual(0);
+
+    this.point.set('latlng', [ -45, 45 ]);
+
+    markers = this.mapView.getMarkers();
+    expect(markers.length).toEqual(1);
   });
 
   describe('when the model is updated', function () {
     it("should update the marker's latlng", function () {
-      var markers = this.leafletMap.getMarkers();
+      var markers = this.mapView.getMarkers();
       expect(markers.length).toEqual(1);
-      expect(markers[0].getLatLng()).toEqual({
+      expect(getMarkerCoordinates(markers[0])).toEqual({
         lat: -40,
         lng: 40
       });
 
       this.point.set('latlng', [ -45, 45 ]);
 
-      markers = this.leafletMap.getMarkers();
+      markers = this.mapView.getMarkers();
       expect(markers.length).toEqual(1);
-      expect(markers[0].getLatLng()).toEqual({
+      expect(getMarkerCoordinates(markers[0])).toEqual({
         lat: -45,
         lng: 45
       });
@@ -55,11 +101,11 @@ describe('src/geo/leaflet/geometries/point-view.js', function () {
 
   describe('when the model is removed', function () {
     it('should remove the marker if model is removed', function () {
-      expect(this.leafletMap.getMarkers().length).toEqual(1);
+      expect(this.mapView.getMarkers().length).toEqual(1);
 
       this.point.remove();
 
-      expect(this.leafletMap.getMarkers().length).toEqual(0);
+      expect(this.mapView.getMarkers().length).toEqual(0);
     });
 
     it('should remove the view', function () {
@@ -81,55 +127,89 @@ describe('src/geo/leaflet/geometries/point-view.js', function () {
         editable: true
       });
 
-      this.leafletMap = new FakeLeafletMap();
+      this.mapView = createFakeMapView();
 
       this.pointView = new PointView({
         model: this.point,
-        nativeMap: this.leafletMap
+        mapView: this.mapView
       });
 
       this.pointView.render();
-      this.marker = this.leafletMap.getMarkers()[0];
+      this.marker = this.mapView.getMarkers()[0];
     });
 
     it('should add an editable marker to the map', function () {
-      expect(this.marker.options.draggable).toBe(true);
+      expect(isMarkerDraggable(this.marker)).toBe(true);
     });
 
     it("should update model's latlng when the marker is dragged & dropped", function () {
-      spyOn(this.marker, 'getLatLng').and.returnValue({
+      spyOn(this.marker, 'getCoordinates').and.returnValue({
         lat: -90,
         lng: 90
       });
 
-      this.marker.fire('dragstart');
-      this.marker.fire('drag');
-      this.marker.fire('dragend');
+      fireMarkerEvent(this.marker, 'dragstart');
+      fireMarkerEvent(this.marker, 'drag');
+      fireMarkerEvent(this.marker, 'dragend');
 
-      expect(this.point.get('latlng')).toEqual([ -90, 90 ]);
+      expect(this.point.getCoordinates()).toEqual([ -90, 90 ]);
     });
 
     it("shouldn't update the marker's latlng while dragging", function () {
-      this.marker.fire('dragstart');
+      fireMarkerEvent(this.marker, 'dragstart');
 
       this.point.set('latlng', [
         -50,
         50
       ]);
 
-      expect(this.marker.getLatLng().lat).toEqual(-40);
-      expect(this.marker.getLatLng().lng).toEqual(40);
+      expect(this.marker.getCoordinates().lat).toEqual(-40);
+      expect(this.marker.getCoordinates().lng).toEqual(40);
 
-      this.marker.fire('drag');
-      this.marker.fire('dragend');
+      fireMarkerEvent(this.marker, 'drag');
+      fireMarkerEvent(this.marker, 'dragend');
 
       this.point.set('latlng', [
         -50,
         50
       ]);
 
-      expect(this.marker.getLatLng().lat).toEqual(-50);
-      expect(this.marker.getLatLng().lng).toEqual(50);
+      expect(this.marker.getCoordinates().lat).toEqual(-50);
+      expect(this.marker.getCoordinates().lng).toEqual(50);
+    });
+
+    it('should bind marker events', function () {
+      var callback = jasmine.createSpy('callback');
+      var marker = this.mapView.getMarkers()[0];
+
+      this.pointView.on('mousedown', callback);
+      fireMarkerEvent(marker, 'mousedown');
+
+      expect(callback).toHaveBeenCalled();
+    });
+
+    it('should unbind marker events when the view is cleaned', function () {
+      var callback = jasmine.createSpy('callback');
+      var marker = this.mapView.getMarkers()[0];
+
+      this.pointView.on('mousedown', callback);
+      this.pointView.clean();
+
+      fireMarkerEvent(marker, 'mousedown');
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('.clean', function () {
+    it('should remove the marker from the map', function () {
+      var markers = this.mapView.getMarkers();
+      expect(markers.length).toEqual(1);
+
+      this.pointView.clean();
+
+      markers = this.mapView.getMarkers();
+      expect(markers.length).toEqual(0);
     });
   });
 });

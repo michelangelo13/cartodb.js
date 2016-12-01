@@ -1,6 +1,30 @@
 var _ = require('underscore');
 var Point = require('../../../../../src/geo/geometry-models/point.js');
-var FakeLeafletMap = require('./fake-leaflet-map');
+var Map = require('../../../../../src/geo/map');
+
+var FakeMapView = require('./fake-map-view');
+
+var createFakeLeafletMapView = createFakeMapView = function () {
+  var map = new Map(null, {
+    layersFactory: {}
+  });
+  return new FakeMapView({
+    map: map,
+    layerGroupModel: {}
+  });
+};
+
+var getMarkerCoordinates = function (marker) {
+  return marker.getCoordinates();
+};
+
+var isMarkerDraggable = function (marker) {
+  return marker.isDraggable();
+};
+
+var fireMarkerEvent = function (marker, event) {
+  marker.trigger(event);
+};
 
 module.exports = function (PathClass, PathViewClass) {
   if (!PathClass) throw new Error('PathClass is required');
@@ -9,7 +33,7 @@ module.exports = function (PathClass, PathViewClass) {
   beforeEach(function () {
     spyOn(_, 'debounce').and.callFake(function (func) { return function () { func.apply(this, arguments); }; });
 
-    this.leafletMap = new FakeLeafletMap();
+    this.mapView = createFakeLeafletMapView();
 
     this.geometry = new PathClass(null, {
       latlngs: [
@@ -19,31 +43,31 @@ module.exports = function (PathClass, PathViewClass) {
 
     this.geometryView = new PathViewClass({
       model: this.geometry,
-      nativeMap: this.leafletMap
+      mapView: this.mapView
     });
 
     this.geometryView.render();
   });
 
   it('should render some markers and the path', function () {
-    var paths = this.leafletMap.getPaths();
-    var markers = this.leafletMap.getMarkers();
+    var paths = this.mapView.getPaths();
+    var markers = this.mapView.getMarkers();
     expect(paths.length).toEqual(1);
     expect(markers.length).toEqual(3); // 3 markers
-    expect(markers[0].getLatLng()).toEqual({ lat: -1, lng: 1 });
-    expect(markers[0].options.draggable).toBe(false);
-    expect(markers[1].getLatLng()).toEqual({ lat: 1, lng: 2 });
-    expect(markers[1].options.draggable).toBe(false);
-    expect(markers[2].getLatLng()).toEqual({ lat: 3, lng: 4 });
-    expect(markers[2].options.draggable).toBe(false);
-    expect(paths[0].getLatLngs()).toEqual([
+    expect(getMarkerCoordinates(markers[0])).toEqual({ lat: -1, lng: 1 });
+    expect(isMarkerDraggable(markers[0])).toBe(false);
+    expect(getMarkerCoordinates(markers[1])).toEqual({ lat: 1, lng: 2 });
+    expect(isMarkerDraggable(markers[1])).toBe(false);
+    expect(getMarkerCoordinates(markers[2])).toEqual({ lat: 3, lng: 4 });
+    expect(isMarkerDraggable(markers[2])).toBe(false);
+    expect(paths[0].getCoordinates()).toEqual([
       { lat: -1, lng: 1 }, { lat: 1, lng: 2 }, { lat: 3, lng: 4 }
     ]);
   });
 
   it('should not render duplicated markers', function () {
-    var paths = this.leafletMap.getPaths();
-    var markers = this.leafletMap.getMarkers();
+    var paths = this.mapView.getPaths();
+    var markers = this.mapView.getMarkers();
     expect(paths.length).toEqual(1);
     expect(markers.length).toEqual(3); // 3 markers
 
@@ -51,8 +75,8 @@ module.exports = function (PathClass, PathViewClass) {
       [-1, 1], [1, 2], [3, 4], [-1, 1]
     ]);
 
-    paths = this.leafletMap.getPaths();
-    markers = this.leafletMap.getMarkers();
+    paths = this.mapView.getPaths();
+    markers = this.mapView.getMarkers();
     expect(paths.length).toEqual(1);
     expect(markers.length).toEqual(4); // 4 markers
   });
@@ -72,7 +96,7 @@ module.exports = function (PathClass, PathViewClass) {
 
     describe('when points are added', function () {
       beforeEach(function () {
-        this.numberOfMarkersBefore = this.leafletMap.getMarkers().length;
+        this.numberOfMarkersBefore = this.mapView.getMarkers().length;
         var point = new Point({
           latlng: [
             -40,
@@ -89,7 +113,7 @@ module.exports = function (PathClass, PathViewClass) {
       });
 
       it('should render a new marker', function () {
-        var numberOfMarkersAfter = this.leafletMap.getMarkers().length;
+        var numberOfMarkersAfter = this.mapView.getMarkers().length;
 
         expect(numberOfMarkersAfter).toEqual(this.numberOfMarkersBefore + 1);
       });
@@ -109,7 +133,7 @@ module.exports = function (PathClass, PathViewClass) {
       });
 
       it('should render the right number of markers', function () {
-        var numberOfMarkersAfter = this.leafletMap.getMarkers().length;
+        var numberOfMarkersAfter = this.mapView.getMarkers().length;
         expect(numberOfMarkersAfter).toEqual(3);
       });
     });
@@ -117,15 +141,15 @@ module.exports = function (PathClass, PathViewClass) {
 
   describe('when the model is removed', function () {
     it('should remove the markers and path from the map', function () {
-      var paths = this.leafletMap.getPaths();
-      var markers = this.leafletMap.getMarkers();
+      var paths = this.mapView.getPaths();
+      var markers = this.mapView.getMarkers();
       expect(paths.length).toEqual(1);
       expect(markers.length).toEqual(3); // 3 markers
 
       this.geometry.remove();
 
-      paths = this.leafletMap.getPaths();
-      markers = this.leafletMap.getMarkers();
+      paths = this.mapView.getPaths();
+      markers = this.mapView.getMarkers();
       expect(paths.length).toEqual(0);
       expect(markers.length).toEqual(0);
     });
@@ -141,7 +165,7 @@ module.exports = function (PathClass, PathViewClass) {
 
   describe('expandable paths', function () {
     beforeEach(function () {
-      this.leafletMap = new FakeLeafletMap();
+      this.mapView = createFakeLeafletMapView();
 
       this.geometry = new PathClass({
         editable: true,
@@ -154,28 +178,28 @@ module.exports = function (PathClass, PathViewClass) {
 
       this.geometryView = new PathViewClass({
         model: this.geometry,
-        nativeMap: this.leafletMap
+        mapView: this.mapView
       });
 
       this.geometryView.render();
 
       // Marker that we'll interact with in the tests
-      this.middlePointMarker = this.leafletMap.findMarkerByLatLng({ lat: 5, lng: 0 });
-      var markers = this.leafletMap.getMarkers();
+      this.middlePointMarker = this.mapView.findMarkerByLatLng({ lat: 5, lng: 0 });
+      var markers = this.mapView.getMarkers();
       this.numberOfMarkersBefore = markers.length;
     });
 
     describe('when the model is removed', function () {
       it('should remove the markers, middle points, and path from the map', function () {
-        var paths = this.leafletMap.getPaths();
-        var markers = this.leafletMap.getMarkers();
+        var paths = this.mapView.getPaths();
+        var markers = this.mapView.getMarkers();
         expect(paths.length).not.toEqual(0);
         expect(markers.length).not.toEqual(0);
 
         this.geometry.remove();
 
-        paths = this.leafletMap.getPaths();
-        markers = this.leafletMap.getMarkers();
+        paths = this.mapView.getPaths();
+        markers = this.mapView.getMarkers();
         expect(paths.length).toEqual(0);
         expect(markers.length).toEqual(0);
       });
@@ -183,41 +207,41 @@ module.exports = function (PathClass, PathViewClass) {
 
     describe('when user mousedowns a middle point', function () {
       beforeEach(function () {
-        expect(this.middlePointMarker.options.icon.options.iconUrl).toEqual(Point.MIDDLE_POINT_ICON_URL);
+        expect(this.middlePointMarker.getIconURL()).toEqual(Point.MIDDLE_POINT_ICON_URL);
 
-        this.middlePointMarker.fire('mousedown');
+        fireMarkerEvent(this.middlePointMarker, 'mousedown');
       });
 
       it('should add a vertex to the geometry at [5, 0]', function () {
-        var paths = this.leafletMap.getPaths();
+        var paths = this.mapView.getPaths();
         expect(paths.length).toEqual(1);
-        expect(paths[0].getLatLngs()).toEqual([
+        expect(paths[0].getCoordinates()).toEqual([
           { lat: 0, lng: 0 }, { lat: 5, lng: 0 }, { lat: 10, lng: 0 }, { lat: 10, lng: 10 }, { lat: 0, lng: 10 }
         ]);
       });
 
       it('should change the icon of the middle point', function () {
-        expect(this.middlePointMarker.options.icon.options.iconUrl).toEqual(Point.DEFAULT_ICON_URL);
+        expect(this.middlePointMarker.getIconURL()).toEqual(Point.DEFAULT_ICON_URL);
       });
 
       it('should add two middle points at [2.5] and [7.5, 0]', function () {
-        var markers = this.leafletMap.getMarkers();
+        var markers = this.mapView.getMarkers();
         expect(markers.length).toEqual(this.numberOfMarkersBefore + 2);
 
-        expect(this.leafletMap.findMarkerByLatLng({ lat: 2.5, lng: 0 })).toBeDefined();
-        expect(this.leafletMap.findMarkerByLatLng({ lat: 7.5, lng: 0 })).toBeDefined();
+        expect(this.mapView.findMarkerByLatLng({ lat: 2.5, lng: 0 })).toBeDefined();
+        expect(this.mapView.findMarkerByLatLng({ lat: 7.5, lng: 0 })).toBeDefined();
       });
 
       it('should remove the markers, middle points, and path from the map when the model is removed', function () {
-        var paths = this.leafletMap.getPaths();
-        var markers = this.leafletMap.getMarkers();
+        var paths = this.mapView.getPaths();
+        var markers = this.mapView.getMarkers();
         expect(paths.length).not.toEqual(0);
         expect(markers.length).not.toEqual(0);
 
         this.geometry.remove();
 
-        paths = this.leafletMap.getPaths();
-        markers = this.leafletMap.getMarkers();
+        paths = this.mapView.getPaths();
+        markers = this.mapView.getMarkers();
         expect(paths.length).toEqual(0);
         expect(markers.length).toEqual(0);
       });
@@ -225,26 +249,26 @@ module.exports = function (PathClass, PathViewClass) {
       describe('when user drags a middle point', function () {
         beforeEach(function () {
           // Simulate a drag and drop to [5, -5]
-          spyOn(this.middlePointMarker, 'getLatLng').and.returnValue({ lat: 5, lng: -5 });
-          this.middlePointMarker.fire('dragstart');
-          this.middlePointMarker.fire('drag');
-          this.middlePointMarker.fire('dragend');
+          spyOn(this.middlePointMarker, 'getCoordinates').and.returnValue({ lat: 5, lng: -5 });
+          fireMarkerEvent(this.middlePointMarker, 'dragstart');
+          fireMarkerEvent(this.middlePointMarker, 'drag');
+          fireMarkerEvent(this.middlePointMarker, 'dragend');
         });
 
-        it('should add a vertex to the geometry at [5, -5]', function () {
-          var paths = this.leafletMap.getPaths();
+        it('should update the coordinates of the new vertex to [5, -5]', function () {
+          var paths = this.mapView.getPaths();
           expect(paths.length).toEqual(1);
-          expect(paths[0].getLatLngs()).toEqual([
+          expect(paths[0].getCoordinates()).toEqual([
             { lat: 0, lng: 0 }, { lat: 5, lng: -5 }, { lat: 10, lng: 0 }, { lat: 10, lng: 10 }, { lat: 0, lng: 10 }
           ]);
         });
 
         it('should add two middle points at [2.5] and [7.5, 0]', function () {
-          var markers = this.leafletMap.getMarkers();
+          var markers = this.mapView.getMarkers();
           expect(markers.length).toEqual(this.numberOfMarkersBefore + 2); // Only two middle points have been added
 
-          expect(this.leafletMap.findMarkerByLatLng({ lat: 2.5, lng: -2.5 })).toBeDefined();
-          expect(this.leafletMap.findMarkerByLatLng({ lat: 7.5, lng: -2.5 })).toBeDefined();
+          expect(this.mapView.findMarkerByLatLng({ lat: 2.5, lng: -2.5 })).toBeDefined();
+          expect(this.mapView.findMarkerByLatLng({ lat: 7.5, lng: -2.5 })).toBeDefined();
         });
       });
     });
